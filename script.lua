@@ -1,16 +1,13 @@
--- Auto Remote Carry (On/Off Toggle)
+-- Auto Remote Carry V5 (Brute Force)
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local lp = Players.LocalPlayer
 
 local isCarrying = false
-local currentTarget = nil
 local grabRemotes = {}
 local loopConnection = nil
 
--- ================= GUI SETUP =================
 local gui = Instance.new("ScreenGui")
-gui.Name = "AutoRemoteCarry"
 gui.ResetOnSpawn = false
 gui.Parent = lp:WaitForChild("PlayerGui")
 
@@ -32,47 +29,37 @@ panel.Parent = gui
 local carrySwitch = Instance.new("TextButton")
 carrySwitch.Size = UDim2.new(1,-20,0,40)
 carrySwitch.Position = UDim2.new(0,10,0,10)
-carrySwitch.Text = "Auto Gendong: OFF"
+carrySwitch.Text = "Brute Force Gendong: OFF"
 carrySwitch.BackgroundColor3 = Color3.fromRGB(150, 50, 50)
 carrySwitch.TextColor3 = Color3.fromRGB(255,255,255)
 carrySwitch.Parent = panel
 
-local scanBtn = Instance.new("TextButton")
-scanBtn.Size = UDim2.new(1,-20,0,30)
-scanBtn.Position = UDim2.new(0,10,0,60)
-scanBtn.Text = "Scan Ulang Remote"
-scanBtn.Parent = panel
-
 local status = Instance.new("TextLabel")
-status.Size = UDim2.new(1,-20,0,40)
-status.Position = UDim2.new(0,10,0,100)
+status.Size = UDim2.new(1,-20,0,80)
+status.Position = UDim2.new(0,10,0,60)
 status.Text = "Status: Siap"
+status.TextWrapped = true
 status.TextColor3 = Color3.fromRGB(200,200,200)
 status.BackgroundTransparency = 1
 status.Parent = panel
 
 toggleBtn.MouseButton1Click:Connect(function() panel.Visible = not panel.Visible end)
 
--- ================= SCAN REMOTES =================
+-- Scan semua Remote (Jangan cuma "grab", kadang namanya "Action", "Interact", dll)
 local function scanRemotes()
     table.clear(grabRemotes)
     for _, v in pairs(ReplicatedStorage:GetDescendants()) do
-        if v:IsA("RemoteEvent") or v:IsA("RemoteFunction") then
-            local n = string.lower(v.Name)
-            if n:find("grab") or n:find("pick") or n:find("carry") or n:find("hold") or n:find("interact") then
-                table.insert(grabRemotes, v)
-            end
+        if v:IsA("RemoteEvent") or v:IsA("RemoteFunction") or v:IsA("UnreliableRemoteEvent") then
+            table.insert(grabRemotes, v)
         end
     end
-    status.Text = "Ditemukan " .. tostring(#grabRemotes) .. " Remote."
+    status.Text = "Ditemukan " .. tostring(#grabRemotes) .. " Remote Total. Siap ditembak."
 end
 
-scanBtn.MouseButton1Click:Connect(scanRemotes)
-scanRemotes() -- Panggil pertama kali
+scanRemotes()
 
--- ================= CARA KERJA =================
 local function getNearestPlayer()
-    local nearest, dist = nil, 15
+    local nearest, dist = nil, 20
     local myRoot = lp.Character and lp.Character:FindFirstChild("HumanoidRootPart")
     if not myRoot then return nil end
     
@@ -89,35 +76,34 @@ carrySwitch.MouseButton1Click:Connect(function()
     isCarrying = not isCarrying
     
     if isCarrying then
-        if #grabRemotes == 0 then
-            status.Text = "Gagal: Game tidak punya Remote Grab!"
-            isCarrying = false
-            return
-        end
-        
-        carrySwitch.Text = "Auto Gendong: ON"
+        carrySwitch.Text = "Brute Force Gendong: ON"
         carrySwitch.BackgroundColor3 = Color3.fromRGB(50, 150, 50)
+        status.Text = "Mencoba brute-force semua Remote..."
         
-        -- Loop utama saat ON
         task.spawn(function()
             while isCarrying do
-                task.wait(0.3) -- Jeda agar tidak kena rate-limit server
+                task.wait(0.5) -- Jeda 0.5 detik per putaran agar server ga crash
                 local target = getNearestPlayer()
                 
                 if target and target.Character then
-                    currentTarget = target
-                    status.Text = "Mencoba gendong: " .. target.Name
+                    status.Text = "Nembak target: " .. target.Name
                     
                     for _, remote in ipairs(grabRemotes) do
                         pcall(function()
-                            if remote:IsA("RemoteEvent") then
-                                -- Tembak dengan berbagai kemungkinan parameter
+                            if remote:IsA("RemoteEvent") or remote:IsA("UnreliableRemoteEvent") then
+                                -- Tembak dengan berbagai variasi argumen yang mungkin diminta server
+                                remote:FireServer(target.Name)
                                 remote:FireServer(target)
                                 remote:FireServer(target.Character)
-                                remote:FireServer(target.Character.HumanoidRootPart)
+                                remote:FireServer(target.UserId)
+                                remote:FireServer(true)
+                                remote:FireServer("Grab", target)
+                                remote:FireServer("Carry", target)
+                                remote:FireServer("Equip", target)
                             elseif remote:IsA("RemoteFunction") then
                                 remote:InvokeServer(target)
                                 remote:InvokeServer(target.Character)
+                                remote:InvokeServer(target.Name)
                             end
                         end)
                     end
@@ -128,9 +114,8 @@ carrySwitch.MouseButton1Click:Connect(function()
         end)
         
     else
-        carrySwitch.Text = "Auto Gendong: OFF"
+        carrySwitch.Text = "Brute Force Gendong: OFF"
         carrySwitch.BackgroundColor3 = Color3.fromRGB(150, 50, 50)
         status.Text = "Status: Dimatikan"
-        currentTarget = nil
     end
 end)
