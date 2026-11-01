@@ -1,121 +1,143 @@
--- Auto Remote Carry V5 (Brute Force)
+-- Bring Player & Teleport Script
 local Players = game:GetService("Players")
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
 local lp = Players.LocalPlayer
 
-local isCarrying = false
-local grabRemotes = {}
-local loopConnection = nil
+local selectedPlayer = nil
+local isBringing = false
+local bringConnection = nil
 
+-- GUI
 local gui = Instance.new("ScreenGui")
 gui.ResetOnSpawn = false
 gui.Parent = lp:WaitForChild("PlayerGui")
 
-local toggleBtn = Instance.new("TextButton")
-toggleBtn.Size = UDim2.new(0, 60, 0, 30)
-toggleBtn.Position = UDim2.new(0, 10, 0, 10)
-toggleBtn.Text = "MENU"
-toggleBtn.BackgroundColor3 = Color3.fromRGB(30,30,30)
-toggleBtn.TextColor3 = Color3.fromRGB(255,255,255)
-toggleBtn.Parent = gui
+local toggle = Instance.new("TextButton")
+toggle.Size = UDim2.new(0, 60, 0, 30)
+toggle.Position = UDim2.new(0, 10, 0, 10)
+toggle.Text = "MENU"
+toggle.BackgroundColor3 = Color3.fromRGB(30,30,30)
+toggle.TextColor3 = Color3.fromRGB(255,255,255)
+toggle.Parent = gui
 
 local panel = Instance.new("Frame")
-panel.Size = UDim2.new(0, 250, 0, 150)
+panel.Size = UDim2.new(0, 220, 0, 200)
 panel.Position = UDim2.new(0, 10, 0, 50)
 panel.BackgroundColor3 = Color3.fromRGB(20,20,20)
 panel.Visible = false
 panel.Parent = gui
 
-local carrySwitch = Instance.new("TextButton")
-carrySwitch.Size = UDim2.new(1,-20,0,40)
-carrySwitch.Position = UDim2.new(0,10,0,10)
-carrySwitch.Text = "Brute Force Gendong: OFF"
-carrySwitch.BackgroundColor3 = Color3.fromRGB(150, 50, 50)
-carrySwitch.TextColor3 = Color3.fromRGB(255,255,255)
-carrySwitch.Parent = panel
+local playerList = Instance.new("ScrollingFrame")
+playerList.Size = UDim2.new(1,-20,0,80)
+playerList.Position = UDim2.new(0,10,0,10)
+playerList.BackgroundColor3 = Color3.fromRGB(35,35,35)
+playerList.Parent = panel
+
+local uiList = Instance.new("UIListLayout")
+uiList.Parent = playerList
+
+local bringBtn = Instance.new("TextButton")
+bringBtn.Size = UDim2.new(1,-20,0,30)
+bringBtn.Position = UDim2.new(0,10,0,100)
+bringBtn.Text = "Bring (Tarik ke Sini)"
+bringBtn.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
+bringBtn.TextColor3 = Color3.fromRGB(255,255,255)
+bringBtn.Parent = panel
+
+local tpBtn = Instance.new("TextButton")
+tpBtn.Size = UDim2.new(1,-20,0,30)
+tpBtn.Position = UDim2.new(0,10,0,135)
+tpBtn.Text = "Teleport ke Dia"
+tpBtn.BackgroundColor3 = Color3.fromRGB(50, 150, 50)
+tpBtn.TextColor3 = Color3.fromRGB(255,255,255)
+tpBtn.Parent = panel
 
 local status = Instance.new("TextLabel")
-status.Size = UDim2.new(1,-20,0,80)
-status.Position = UDim2.new(0,10,0,60)
-status.Text = "Status: Siap"
-status.TextWrapped = true
+status.Size = UDim2.new(1,-20,0,20)
+status.Position = UDim2.new(0,10,0,170)
+status.Text = "Pilih player di atas..."
 status.TextColor3 = Color3.fromRGB(200,200,200)
 status.BackgroundTransparency = 1
 status.Parent = panel
 
-toggleBtn.MouseButton1Click:Connect(function() panel.Visible = not panel.Visible end)
+toggle.MouseButton1Click:Connect(function() panel.Visible = not panel.Visible end)
 
--- Scan semua Remote (Jangan cuma "grab", kadang namanya "Action", "Interact", dll)
-local function scanRemotes()
-    table.clear(grabRemotes)
-    for _, v in pairs(ReplicatedStorage:GetDescendants()) do
-        if v:IsA("RemoteEvent") or v:IsA("RemoteFunction") or v:IsA("UnreliableRemoteEvent") then
-            table.insert(grabRemotes, v)
-        end
+-- Update List Player
+local function updateList()
+    for _, child in ipairs(playerList:GetChildren()) do
+        if child:IsA("TextButton") then child:Destroy() end
     end
-    status.Text = "Ditemukan " .. tostring(#grabRemotes) .. " Remote Total. Siap ditembak."
-end
-
-scanRemotes()
-
-local function getNearestPlayer()
-    local nearest, dist = nil, 20
-    local myRoot = lp.Character and lp.Character:FindFirstChild("HumanoidRootPart")
-    if not myRoot then return nil end
     
     for _, p in ipairs(Players:GetPlayers()) do
-        if p ~= lp and p.Character and p.Character:FindFirstChild("HumanoidRootPart") then
-            local d = (myRoot.Position - p.Character.HumanoidRootPart.Position).Magnitude
-            if d < dist then dist = d; nearest = p end
+        if p ~= lp then
+            local btn = Instance.new("TextButton")
+            btn.Size = UDim2.new(1, -5, 0, 25)
+            btn.Text = p.Name
+            btn.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+            btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+            btn.Parent = playerList
+            btn.MouseButton1Click:Connect(function()
+                selectedPlayer = p
+                status.Text = "Target: " .. p.Name
+            end)
         end
     end
-    return nearest
+    playerList.CanvasSize = UDim2.new(0, 0, 0, #Players:GetPlayers() * 30)
 end
 
-carrySwitch.MouseButton1Click:Connect(function()
-    isCarrying = not isCarrying
+updateList()
+Players.PlayerAdded:Connect(updateList)
+Players.PlayerRemoving:Connect(updateList)
+
+-- Fungsi Bring (Spam CFrame)
+bringBtn.MouseButton1Click:Connect(function()
+    if not selectedPlayer or not selectedPlayer.Character then
+        status.Text = "Target tidak valid/mati!"
+        return
+    end
     
-    if isCarrying then
-        carrySwitch.Text = "Brute Force Gendong: ON"
-        carrySwitch.BackgroundColor3 = Color3.fromRGB(50, 150, 50)
-        status.Text = "Mencoba brute-force semua Remote..."
+    isBringing = not isBringing
+    
+    if isBringing then
+        bringBtn.Text = "Bring: ON (Stop)"
+        status.Text = "Menarik " .. selectedPlayer.Name .. "..."
         
         task.spawn(function()
-            while isCarrying do
-                task.wait(0.5) -- Jeda 0.5 detik per putaran agar server ga crash
-                local target = getNearestPlayer()
+            while isBringing do
+                task.wait()
+                local myRoot = lp.Character and lp.Character:FindFirstChild("HumanoidRootPart")
+                local targetRoot = selectedPlayer.Character and selectedPlayer.Character:FindFirstChild("HumanoidRootPart")
                 
-                if target and target.Character then
-                    status.Text = "Nembak target: " .. target.Name
-                    
-                    for _, remote in ipairs(grabRemotes) do
-                        pcall(function()
-                            if remote:IsA("RemoteEvent") or remote:IsA("UnreliableRemoteEvent") then
-                                -- Tembak dengan berbagai variasi argumen yang mungkin diminta server
-                                remote:FireServer(target.Name)
-                                remote:FireServer(target)
-                                remote:FireServer(target.Character)
-                                remote:FireServer(target.UserId)
-                                remote:FireServer(true)
-                                remote:FireServer("Grab", target)
-                                remote:FireServer("Carry", target)
-                                remote:FireServer("Equip", target)
-                            elseif remote:IsA("RemoteFunction") then
-                                remote:InvokeServer(target)
-                                remote:InvokeServer(target.Character)
-                                remote:InvokeServer(target.Name)
-                            end
-                        end)
-                    end
-                else
-                    status.Text = "Tidak ada player di dekatmu."
+                if myRoot and targetRoot then
+                    pcall(function()
+                        -- Rampas Network Ownership
+                        targetRoot:SetNetworkOwner(lp)
+                        -- Tarik paksa ke posisi kita
+                        targetRoot.CFrame = myRoot.CFrame * CFrame.new(0, 0, -3) -- Taruh di depan kita
+                        targetRoot.Velocity = Vector3.new(0,0,0) -- Matikan kecepatan aslinya
+                    end)
                 end
             end
         end)
-        
     else
-        carrySwitch.Text = "Brute Force Gendong: OFF"
-        carrySwitch.BackgroundColor3 = Color3.fromRGB(150, 50, 50)
-        status.Text = "Status: Dimatikan"
+        bringBtn.Text = "Bring (Tarik ke Sini)"
+        status.Text = "Berhenti menarik."
+    end
+end)
+
+-- Fungsi Teleport Diri Sendiri ke Target (100% Berhasil)
+tpBtn.MouseButton1Click:Connect(function()
+    if not selectedPlayer or not selectedPlayer.Character then
+        status.Text = "Target tidak valid/mati!"
+        return
+    end
+    
+    local myRoot = lp.Character and lp.Character:FindFirstChild("HumanoidRootPart")
+    local targetRoot = selectedPlayer.Character and selectedPlayer.Character:FindFirstChild("HumanoidRootPart")
+    
+    if myRoot and targetRoot then
+        -- Teleport diri kita sendiri (Server tidak akan menolak)
+        myRoot.CFrame = targetRoot.CFrame * CFrame.new(0, 0, 3)
+        status.Text = "Teleport ke " .. selectedPlayer.Name
     end
 end)
