@@ -1,10 +1,9 @@
--- Brookhaven REAL C4 Spammer (Tool Focus)
+-- Brookhaven REAL Explosion Spammer
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local lp = Players.LocalPlayer
 
 local selectedPlayer = nil
-local c4Template = nil
 
 -- ================= GUI SETUP =================
 local gui = Instance.new("ScreenGui")
@@ -47,18 +46,10 @@ status.Parent = panel
 local actionBtn = Instance.new("TextButton")
 actionBtn.Size = UDim2.new(1,-20,0,40)
 actionBtn.Position = UDim2.new(0,10,0,210)
-actionBtn.Text = "TP & Ledakkan 50 C4"
+actionBtn.Text = "TP & Ledakkan Target (50x)"
 actionBtn.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
 actionBtn.TextColor3 = Color3.fromRGB(255,255,255)
 actionBtn.Parent = panel
-
-local findC4Btn = Instance.new("TextButton")
-findC4Btn.Size = UDim2.new(1,-20,0,30)
-findC4Btn.Position = UDim2.new(0,10,0,260)
-findC4Btn.Text = "Scan C4 (Dari Tas / Game)"
-findC4Btn.BackgroundColor3 = Color3.fromRGB(50, 100, 200)
-findC4Btn.TextColor3 = Color3.fromRGB(255,255,255)
-findC4Btn.Parent = panel
 
 toggle.MouseButton1Click:Connect(function() panel.Visible = not panel.Visible end)
 
@@ -91,43 +82,16 @@ updateList()
 Players.PlayerAdded:Connect(updateList)
 Players.PlayerRemoving:Connect(updateList)
 
--- ================= CARI ASSET C4 (FOKUS TOOL) =================
-local function findC4()
-    c4Template = nil
-    
-    -- 1. Cek apakah kita sedang megang C4?
-    for _, v in ipairs(lp.Character:GetChildren()) do
-        if v:IsA("Tool") and (string.lower(v.Name):find("c4") or string.lower(v.Name):find("bomb")) then
-            c4Template = v
-            status.Text = "C4 Ditemukan di Tangan: " .. v.Name
-            return
+-- ================= FUNGSI Cari Remote Ledakan =================
+local explodeRemotes = {}
+for _, v in ipairs(ReplicatedStorage:GetDescendants()) do
+    if v:IsA("RemoteEvent") or v:IsA("RemoteFunction") then
+        local n = string.lower(v.Name)
+        if n:find("explode") or n:find("bomb") or n:find("c4") or n:find("damage") or n:find("kill") then
+            table.insert(explodeRemotes, v)
         end
     end
-    
-    -- 2. Cek di dalam Backpack kita?
-    local backpack = lp:FindFirstChild("Backpack")
-    if backpack then
-        for _, v in ipairs(backpack:GetChildren()) do
-            if v:IsA("Tool") and (string.lower(v.Name):find("c4") or string.lower(v.Name):find("bomb")) then
-                c4Template = v
-                status.Text = "C4 Ditemukan di Tas: " .. v.Name
-                return
-            end
-        end
-    end
-
-    -- 3. Kalau nggak ada, cari Tool di ReplicatedStorage
-    for _, v in ipairs(ReplicatedStorage:GetDescendants()) do
-        if v:IsA("Tool") and (string.lower(v.Name):find("c4") or string.lower(v.Name):find("bomb")) then
-            c4Template = v
-            status.Text = "C4 Ditemukan di Game: " .. v.Name
-            return
-        end
-    end
-    
-    status.Text = "C4 TIDAK DITEMUKAN. Pastikan kamu punya C4 di tas atau pegang!"
 end
-findC4Btn.MouseButton1Click:Connect(findC4)
 
 -- ================= AKSI LEDAKKAN =================
 actionBtn.MouseButton1Click:Connect(function()
@@ -136,54 +100,48 @@ actionBtn.MouseButton1Click:Connect(function()
         return
     end
     
-    if not c4Template then
-        findC4()
-        if not c4Template then return end
-    end
-    
     local myRoot = lp.Character and lp.Character:FindFirstChild("HumanoidRootPart")
-    local targetChar = selectedPlayer.Character
-    local targetRoot = targetChar:FindFirstChild("HumanoidRootPart")
-    local targetHum = targetChar:FindFirstChild("Humanoid")
-    local targetBackpack = selectedPlayer:FindFirstChild("Backpack")
+    local targetRoot = selectedPlayer.Character:FindFirstChild("HumanoidRootPart")
     
-    if myRoot and targetRoot and targetHum and targetBackpack then
+    if myRoot and targetRoot then
         -- 1. TP ke target
         myRoot.CFrame = targetRoot.CFrame * CFrame.new(0, 0, 3)
-        status.Text = "TP ke " .. selectedPlayer.Name .. " & Spawn 50 C4..."
+        status.Text = "TP & Meledakkan " .. selectedPlayer.Name .. "..."
         
-        task.wait(0.5)
+        task.wait(0.3)
         
-        -- 2. Spawn 50 C4
+        -- 2. Mulai Spam
         for i = 1, 50 do
             task.spawn(function()
-                local clone = c4Template:Clone()
-                
-                -- Paksa masuk ke tas target
-                clone.Parent = targetBackpack
-                
-                task.wait(0.1)
-                
-                -- Paksa target equip C4 tersebut
-                pcall(function()
-                    targetHum:EquipTool(clone)
-                end)
-                
-                task.wait(0.1)
-                
-                -- Paksa aktifkan C4 (Klik)
-                pcall(function()
-                    clone:Activate()
-                end)
-                
-                -- Picu semua RemoteEvent yang ada di dalam C4 (buat jaga-jaga kalau Activate gak jalan)
-                for _, remote in ipairs(clone:GetDescendants()) do
-                    if remote:IsA("RemoteEvent") then
-                        pcall(function() remote:FireServer() end)
-                    end
+                -- A. Tembak RemoteEvent Game (Kalau ada)
+                for _, remote in ipairs(explodeRemotes) do
+                    pcall(function()
+                        if remote:IsA("RemoteEvent") then
+                            remote:FireServer(targetRoot)
+                            remote:FireServer(selectedPlayer)
+                            remote:FireServer(targetRoot.Position)
+                        else
+                            remote:InvokeServer(targetRoot.Position)
+                        end
+                    end)
                 end
+                
+                -- B. Paksa Spawn Ledakan Fisik Roblox (Visual + Damage)
+                local explosion = Instance.new("Explosion")
+                explosion.Position = targetRoot.Position + Vector3.new(math.random(-3,3), math.random(0,3), math.random(-3,3))
+                explosion.BlastRadius = 15
+                explosion.BlastPressure = 500000 -- Kekuatan dorongan maksimal
+                explosion.DestroyJointRadiusPercent = 1 -- Bikin karakter hancur/mental
+                explosion.Parent = workspace
+                
+                -- C. Dorong Karakter Target (Velocity)
+                pcall(function()
+                    targetRoot:SetNetworkOwner(lp)
+                    targetRoot.Velocity = Vector3.new(math.random(-100,100), 200, math.random(-100,100))
+                    targetRoot.RotVelocity = Vector3.new(math.random(-50,50), math.random(-50,50), math.random(-50,50))
+                end)
             end)
-            task.wait(0.05) -- Jeda antar spawn
+            task.wait(0.05)
         end
     end
 end)
