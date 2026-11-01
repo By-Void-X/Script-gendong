@@ -1,4 +1,4 @@
--- TP to Player & Fling Menu (Gabungan)
+-- TP & Strong Fling (BodyVelocity)
 local Players = game:GetService("Players")
 local lp = Players.LocalPlayer
 
@@ -40,20 +40,18 @@ status.TextColor3 = Color3.fromRGB(255, 255, 100)
 status.BackgroundTransparency = 1
 status.Parent = panel
 
--- TOMBOL TP KE DIA
 local tpBtn = Instance.new("TextButton")
 tpBtn.Size = UDim2.new(1,-20,0,30)
 tpBtn.Position = UDim2.new(0,10,0,190)
-tpBtn.Text = "TP ke Player Terpilih"
+tpBtn.Text = "TP ke Player"
 tpBtn.BackgroundColor3 = Color3.fromRGB(50, 150, 50)
 tpBtn.TextColor3 = Color3.fromRGB(255,255,255)
 tpBtn.Parent = panel
 
--- TOMBOL FLING (LEMPAR)
 local flingBtn = Instance.new("TextButton")
 flingBtn.Size = UDim2.new(1,-20,0,30)
 flingBtn.Position = UDim2.new(0,10,0,225)
-flingBtn.Text = "Fling Player Terpilih"
+flingBtn.Text = "Lempar (Strong Fling)"
 flingBtn.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
 flingBtn.TextColor3 = Color3.fromRGB(255,255,255)
 flingBtn.Parent = panel
@@ -64,7 +62,6 @@ local function updateList()
     for _, child in ipairs(scroll:GetChildren()) do
         if child:IsA("TextButton") then child:Destroy() end
     end
-    
     for _, p in ipairs(Players:GetPlayers()) do
         if p ~= lp then
             local btn = Instance.new("TextButton")
@@ -73,15 +70,10 @@ local function updateList()
             btn.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
             btn.TextColor3 = Color3.fromRGB(255, 255, 255)
             btn.Parent = scroll
-            
             btn.MouseButton1Click:Connect(function()
-                -- Reset warna semua tombol
                 for _, otherBtn in ipairs(scroll:GetChildren()) do
-                    if otherBtn:IsA("TextButton") then
-                        otherBtn.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
-                    end
+                    if otherBtn:IsA("TextButton") then otherBtn.BackgroundColor3 = Color3.fromRGB(60, 60, 60) end
                 end
-                -- Highlight tombol yang dipilih
                 btn.BackgroundColor3 = Color3.fromRGB(100, 100, 255)
                 selectedPlayer = p
                 status.Text = "Target: " .. p.Name
@@ -95,35 +87,42 @@ updateList()
 Players.PlayerAdded:Connect(updateList)
 Players.PlayerRemoving:Connect(updateList)
 
--- FUNGSI TELEPORT KE DIA
 tpBtn.MouseButton1Click:Connect(function()
-    if not selectedPlayer or not selectedPlayer.Character then
-        status.Text = "Target tidak valid/mati!"
-        return
-    end
-    
-    local myRoot = lp.Character and lp.Character:FindFirstChild("HumanoidRootPart")
-    local targetRoot = selectedPlayer.Character and selectedPlayer.Character:FindFirstChild("HumanoidRootPart")
-    
-    if myRoot and targetRoot then
-        myRoot.CFrame = targetRoot.CFrame * CFrame.new(0, 0, 3)
-        status.Text = "Berhasil TP ke " .. selectedPlayer.Name
+    if selectedPlayer and selectedPlayer.Character then
+        local myRoot = lp.Character and lp.Character:FindFirstChild("HumanoidRootPart")
+        local targetRoot = selectedPlayer.Character:FindFirstChild("HumanoidRootPart")
+        if myRoot and targetRoot then
+            myRoot.CFrame = targetRoot.CFrame * CFrame.new(0, 0, 3)
+        end
     end
 end)
 
--- FUNGSI FLING (LEMPAR)
 flingBtn.MouseButton1Click:Connect(function()
-    if not selectedPlayer or not selectedPlayer.Character then
-        status.Text = "Target tidak valid/mati!"
-        return
-    end
-    
-    local targetRoot = selectedPlayer.Character:FindFirstChild("HumanoidRootPart")
-    if targetRoot then
-        pcall(function() targetRoot:SetNetworkOwner(lp) end)
-        targetRoot.Anchored = false
-        targetRoot.Velocity = Vector3.new(10000, 10000, 10000)
-        targetRoot.RotVelocity = Vector3.new(10000, 10000, 10000)
-        status.Text = "Melempar " .. selectedPlayer.Name .. " ke angkasa!"
+    if selectedPlayer and selectedPlayer.Character then
+        local targetChar = selectedPlayer.Character
+        local targetRoot = targetChar:FindFirstChild("HumanoidRootPart")
+        
+        if targetRoot then
+            pcall(function() targetRoot:SetNetworkOwner(lp) end)
+            
+            -- Hapus fling sebelumnya kalau ada
+            for _, v in pairs(targetRoot:GetChildren()) do
+                if v:IsA("BodyVelocity") or v:IsA("BodyAngularVelocity") then v:Destroy() end
+            end
+            
+            -- 1. BodyVelocity (Lempar ke atas)
+            local bv = Instance.new("BodyVelocity")
+            bv.Velocity = Vector3.new(0, 500, 0)
+            bv.MaxForce = Vector3.new(math.huge, math.huge, math.huge)
+            bv.Parent = targetRoot
+            
+            -- 2. BodyAngularVelocity (Putar gila-gilaan)
+            local bav = Instance.new("BodyAngularVelocity")
+            bav.AngularVelocity = Vector3.new(9999, 9999, 9999)
+            bav.MaxTorque = Vector3.new(math.huge, math.huge, math.huge)
+            bav.Parent = targetRoot
+            
+            status.Text = "Melempar " .. selectedPlayer.Name .. "!"
+        end
     end
 end)
