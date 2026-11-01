@@ -1,6 +1,5 @@
--- Brookhaven REAL Explosion Spammer
+-- TP & Break Joints (Ragdoll Paksa)
 local Players = game:GetService("Players")
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local lp = Players.LocalPlayer
 
 local selectedPlayer = nil
@@ -19,7 +18,7 @@ toggle.TextColor3 = Color3.fromRGB(255,255,255)
 toggle.Parent = gui
 
 local panel = Instance.new("Frame")
-panel.Size = UDim2.new(0, 240, 0, 320)
+panel.Size = UDim2.new(0, 240, 0, 300)
 panel.Position = UDim2.new(0, 10, 0, 50)
 panel.BackgroundColor3 = Color3.fromRGB(20,20,20)
 panel.Visible = false
@@ -46,7 +45,7 @@ status.Parent = panel
 local actionBtn = Instance.new("TextButton")
 actionBtn.Size = UDim2.new(1,-20,0,40)
 actionBtn.Position = UDim2.new(0,10,0,210)
-actionBtn.Text = "TP & Ledakkan Target (50x)"
+actionBtn.Text = "TP & Hancurkan Karakter"
 actionBtn.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
 actionBtn.TextColor3 = Color3.fromRGB(255,255,255)
 actionBtn.Parent = panel
@@ -82,18 +81,7 @@ updateList()
 Players.PlayerAdded:Connect(updateList)
 Players.PlayerRemoving:Connect(updateList)
 
--- ================= FUNGSI Cari Remote Ledakan =================
-local explodeRemotes = {}
-for _, v in ipairs(ReplicatedStorage:GetDescendants()) do
-    if v:IsA("RemoteEvent") or v:IsA("RemoteFunction") then
-        local n = string.lower(v.Name)
-        if n:find("explode") or n:find("bomb") or n:find("c4") or n:find("damage") or n:find("kill") then
-            table.insert(explodeRemotes, v)
-        end
-    end
-end
-
--- ================= AKSI LEDAKKAN =================
+-- ================= AKSI HANCURKAN =================
 actionBtn.MouseButton1Click:Connect(function()
     if not selectedPlayer or not selectedPlayer.Character then
         status.Text = "Target tidak valid/mati!"
@@ -101,47 +89,44 @@ actionBtn.MouseButton1Click:Connect(function()
     end
     
     local myRoot = lp.Character and lp.Character:FindFirstChild("HumanoidRootPart")
-    local targetRoot = selectedPlayer.Character:FindFirstChild("HumanoidRootPart")
+    local targetChar = selectedPlayer.Character
+    local targetRoot = targetChar:FindFirstChild("HumanoidRootPart")
     
     if myRoot and targetRoot then
         -- 1. TP ke target
         myRoot.CFrame = targetRoot.CFrame * CFrame.new(0, 0, 3)
-        status.Text = "TP & Meledakkan " .. selectedPlayer.Name .. "..."
+        status.Text = "TP & Menghancurkan " .. selectedPlayer.Name .. "..."
         
-        task.wait(0.3)
+        task.wait(0.2)
         
-        -- 2. Mulai Spam
-        for i = 1, 50 do
-            task.spawn(function()
-                -- A. Tembak RemoteEvent Game (Kalau ada)
-                for _, remote in ipairs(explodeRemotes) do
-                    pcall(function()
-                        if remote:IsA("RemoteEvent") then
-                            remote:FireServer(targetRoot)
-                            remote:FireServer(selectedPlayer)
-                            remote:FireServer(targetRoot.Position)
-                        else
-                            remote:InvokeServer(targetRoot.Position)
-                        end
-                    end)
-                end
-                
-                -- B. Paksa Spawn Ledakan Fisik Roblox (Visual + Damage)
-                local explosion = Instance.new("Explosion")
-                explosion.Position = targetRoot.Position + Vector3.new(math.random(-3,3), math.random(0,3), math.random(-3,3))
-                explosion.BlastRadius = 15
-                explosion.BlastPressure = 500000 -- Kekuatan dorongan maksimal
-                explosion.DestroyJointRadiusPercent = 1 -- Bikin karakter hancur/mental
-                explosion.Parent = workspace
-                
-                -- C. Dorong Karakter Target (Velocity)
+        -- 2. Hancurkan Sendi (Motor6D) Karakter Target
+        for _, v in pairs(targetChar:GetDescendants()) do
+            if v:IsA("Motor6D") then
                 pcall(function()
-                    targetRoot:SetNetworkOwner(lp)
-                    targetRoot.Velocity = Vector3.new(math.random(-100,100), 200, math.random(-100,100))
-                    targetRoot.RotVelocity = Vector3.new(math.random(-50,50), math.random(-50,50), math.random(-50,50))
+                    -- Putuskan sendi biar badannya lepas
+                    v.Part0 = nil 
                 end)
-            end)
-            task.wait(0.05)
+            end
         end
+        
+        -- 3. Paksa Target Mental (Ragdoll)
+        pcall(function()
+            local targetHum = targetChar:FindFirstChild("Humanoid")
+            if targetHum then
+                targetHum.PlatformStand = true
+                targetHum.Sit = true
+            end
+        end)
+        
+        -- 4. Spam Velocity buat mentalin badannya yang udah lepas
+        task.spawn(function()
+            for i = 1, 20 do
+                pcall(function()
+                    targetRoot.Velocity = Vector3.new(math.random(-200, 200), 500, math.random(-200, 200))
+                    targetRoot.RotVelocity = Vector3.new(math.random(-100, 100), math.random(-100, 100), math.random(-100, 100))
+                end)
+                task.wait(0.1)
+            end
+        end)
     end
 end)
