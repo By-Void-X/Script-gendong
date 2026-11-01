@@ -1,14 +1,13 @@
--- Universal_CarryScript_V3.lua
+-- Universal_Carry_V4.lua
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local lp = Players.LocalPlayer
 
 local carriedPlayer = nil
-local isCarrying = false
-local currentWeld = nil
+local attachments = {}
 
+-- GUI
 local gui = Instance.new("ScreenGui")
-gui.Name = "CarryMenuV3"
 gui.ResetOnSpawn = false
 gui.Parent = lp:WaitForChild("PlayerGui")
 
@@ -30,7 +29,7 @@ panel.Parent = gui
 local carryBtn = Instance.new("TextButton")
 carryBtn.Size = UDim2.new(1,-20,0,40)
 carryBtn.Position = UDim2.new(0,10,0,10)
-carryBtn.Text = "Paksa Gendong (Hack)"
+carryBtn.Text = "Sedot Player (Paksa Tarik)"
 carryBtn.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
 carryBtn.TextColor3 = Color3.fromRGB(255,255,255)
 carryBtn.Parent = panel
@@ -54,16 +53,12 @@ status.Parent = panel
 toggle.MouseButton1Click:Connect(function() panel.Visible = not panel.Visible end)
 
 local function getNearestPlayer()
-    local nearest = nil
-    local shortestDist = 20
+    local nearest, shortestDist = nil, 25
     local myRoot = lp.Character and lp.Character:FindFirstChild("HumanoidRootPart")
-    
     if not myRoot then return nil end
-
     for _, player in ipairs(Players:GetPlayers()) do
         if player ~= lp and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
-            local targetRoot = player.Character.HumanoidRootPart
-            local dist = (myRoot.Position - targetRoot.Position).Magnitude
+            local dist = (myRoot.Position - player.Character.HumanoidRootPart.Position).Magnitude
             if dist < shortestDist then
                 shortestDist = dist
                 nearest = player
@@ -73,95 +68,70 @@ local function getNearestPlayer()
     return nearest
 end
 
--- FUNGSI LEPAS
-local function releaseTarget()
-    isCarrying = false
-    if currentWeld then
-        currentWeld:Destroy()
-        currentWeld = nil
+local function clearAttachments()
+    for _, a in ipairs(attachments) do
+        if a then a:Destroy() end
     end
-    if carriedPlayer and carriedPlayer.Character then
-        local targetHum = carriedPlayer.Character:FindFirstChild("Humanoid")
-        local targetRoot = carriedPlayer.Character:FindFirstChild("HumanoidRootPart")
-        if targetHum then
-            targetHum.PlatformStand = false
-            targetHum.WalkSpeed = 16
-            targetHum.JumpPower = 50
-        end
-        if targetRoot then
-            targetRoot.Anchored = false
-        end
-    end
-    carriedPlayer = nil
-    status.Text = "Status: Idle"
+    table.clear(attachments)
 end
 
--- FUNGSI GENDONG (NETWORK GRAB)
 carryBtn.MouseButton1Click:Connect(function()
     local target = getNearestPlayer()
     if target then
         carriedPlayer = target
-        isCarrying = true
-        status.Text = "Menggendong: " .. target.Name
+        status.Text = "Menyedot: " .. target.Name
         
         local myRoot = lp.Character and lp.Character:FindFirstChild("HumanoidRootPart")
         local targetChar = target.Character
         local targetRoot = targetChar and targetChar:FindFirstChild("HumanoidRootPart")
-        local targetHum = targetChar and targetChar:FindFirstChild("Humanoid")
         
-        if myRoot and targetRoot and targetHum then
-            -- 1. RAMPAS KENDALI DARI SERVER (Network Ownership)
-            pcall(function()
-                targetRoot:SetNetworkOwner(lp)
-            end)
+        if myRoot and targetRoot then
+            clearAttachments()
             
-            -- 2. MATIKAN KENDALI FISIK TARGET
-            targetHum.PlatformStand = true
-            targetHum.WalkSpeed = 0
-            targetHum.JumpPower = 0
+            -- 1. Set target jadi tanpa massa
+            targetRoot.Massless = true
             
-            -- 3. WELD (TEMPELKAN)
-            if currentWeld then currentWeld:Destroy() end
-            currentWeld = Instance.new("WeldConstraint")
-            currentWeld.Part0 = myRoot
-            currentWeld.Part1 = targetRoot
-            currentWeld.Parent = myRoot
+            -- 2. Buat baling-baling (Attachment) di dada kita
+            local myAttach = Instance.new("Attachment", myRoot)
+            table.insert(attachments, myAttach)
+            
+            -- 3. Buat baling-baling di badan target
+            local targetAttach = Instance.new("Attachment", targetRoot)
+            table.insert(attachments, targetAttach)
+            
+            -- 4. Pasang gaya tarik magnet (AlignPosition)
+            local align = Instance.new("AlignPosition", myRoot)
+            align.Attachment0 = targetAttach
+            align.Attachment1 = myAttach
+            align.MaxForce = 1000000
+            align.Responsiveness = 200
+            align.Position = myRoot.Position
+            table.insert(attachments, align)
+            
+            -- 5. Paksa lepas kendali server (Spam Network Owner)
+            pcall(function() targetRoot:SetNetworkOwner(lp) end)
         end
     else
-        status.Text = "Status: Tidak ada pemain!"
+        status.Text = "Tidak ada pemain di dekatmu!"
     end
 end)
 
 dropBtn.MouseButton1Click:Connect(function()
-    releaseTarget()
+    if carriedPlayer and carriedPlayer.Character then
+        local targetRoot = carriedPlayer.Character:FindFirstChild("HumanoidRootPart")
+        if targetRoot then targetRoot.Massless = false end
+    end
+    clearAttachments()
+    carriedPlayer = nil
+    status.Text = "Status: Idle"
 end)
 
--- LOOP PENJAGA (Memastikan target tetap nyangkut)
+-- Loop penjaga
 RunService.Heartbeat:Connect(function()
-    if isCarrying and carriedPlayer and carriedPlayer.Character then
+    if carriedPlayer and carriedPlayer.Character then
         local targetRoot = carriedPlayer.Character:FindFirstChild("HumanoidRootPart")
-        local targetHum = carriedPlayer.Character:FindFirstChild("Humanoid")
-        
-        if targetRoot and targetHum then
-            -- Paksa posisi dan status terus-menerus
-            pcall(function()
-                targetRoot:SetNetworkOwner(lp) -- Rampas terus tiap frame
-                targetHum.PlatformStand = true
-                targetHum.WalkSpeed = 0
-            end)
-            
-            -- Jika weld terlepas, buat ulang
-            if not currentWeld or not currentWeld.Parent then
-                local myRoot = lp.Character and lp.Character:FindFirstChild("HumanoidRootPart")
-                if myRoot then
-                    currentWeld = Instance.new("WeldConstraint")
-                    currentWeld.Part0 = myRoot
-                    currentWeld.Part1 = targetRoot
-                    currentWeld.Parent = myRoot
-                end
-            end
-        else
-            releaseTarget()
+        if targetRoot then
+            pcall(function() targetRoot:SetNetworkOwner(lp) end)
         end
     end
 end)
