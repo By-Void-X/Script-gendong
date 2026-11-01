@@ -1,12 +1,15 @@
--- Vine Boom Global Spammer
+-- Audio Tester (Attach to Head)
 local Players = game:GetService("Players")
-local SoundService = game:GetService("SoundService")
 local lp = Players.LocalPlayer
 
-local VINE_BOOM_ID = "5153845327" -- Sound ID Vine Boom
-local currentSound = nil
+-- Kumpulan ID Vine Boom & Meme (Cadangan kalau satu mati)
+local soundIDs = {
+    "5153845327",  -- Vine Boom (Original)
+    "6308606116",  -- Vine Boom (Alternatif)
+    "6033123047",  -- Vine Boom (Versi lain)
+    "13407555977"  -- Bass Boom
+}
 
--- ================= GUI SETUP =================
 local gui = Instance.new("ScreenGui")
 gui.ResetOnSpawn = false
 gui.Parent = lp:WaitForChild("PlayerGui")
@@ -20,67 +23,51 @@ toggle.TextColor3 = Color3.fromRGB(255,255,255)
 toggle.Parent = gui
 
 local panel = Instance.new("Frame")
-panel.Size = UDim2.new(0, 220, 0, 160)
+panel.Size = UDim2.new(0, 220, 0, 200)
 panel.Position = UDim2.new(0, 10, 0, 50)
 panel.BackgroundColor3 = Color3.fromRGB(20,20,20)
 panel.Visible = false
 panel.Parent = gui
 
-local idBox = Instance.new("TextBox")
-idBox.Size = UDim2.new(1,-20,0,35)
-idBox.Position = UDim2.new(0,10,0,10)
-idBox.Text = VINE_BOOM_ID
-idBox.PlaceholderText = "Sound ID"
-idBox.TextColor3 = Color3.fromRGB(255,255,255)
-idBox.BackgroundColor3 = Color3.fromRGB(50,50,50)
-idBox.Parent = panel
+local status = Instance.new("TextLabel")
+status.Size = UDim2.new(1,-20,0,30)
+status.Position = UDim2.new(0,10,0,10)
+status.Text = "Pilih ID di bawah:"
+status.TextColor3 = Color3.fromRGB(255,255,255)
+status.BackgroundTransparency = 1
+status.Parent = panel
 
-local playBtn = Instance.new("TextButton")
-playBtn.Size = UDim2.new(1,-20,0,35)
-playBtn.Position = UDim2.new(0,10,0,55)
-playBtn.Text = "Putar Vine Boom (Play)"
-playBtn.BackgroundColor3 = Color3.fromRGB(50, 150, 50)
-playBtn.TextColor3 = Color3.fromRGB(255,255,255)
-playBtn.Font = Enum.Font.SourceSansBold
-playBtn.TextSize = 16
-playBtn.Parent = panel
-
-local stopBtn = Instance.new("TextButton")
-stopBtn.Size = UDim2.new(1,-20,0,35)
-stopBtn.Position = UDim2.new(0,10,0,100)
-stopBtn.Text = "Hentikan Suara"
-stopBtn.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
-stopBtn.TextColor3 = Color3.fromRGB(255,255,255)
-stopBtn.Parent = panel
+-- Bikin tombol buat tiap ID
+local yPos = 40
+for i, id in ipairs(soundIDs) do
+    local btn = Instance.new("TextButton")
+    btn.Size = UDim2.new(1,-20,0,30)
+    btn.Position = UDim2.new(0,10,0,yPos)
+    btn.Text = "Play ID: " .. id
+    btn.BackgroundColor3 = Color3.fromRGB(50, 100, 200)
+    btn.TextColor3 = Color3.fromRGB(255,255,255)
+    btn.Parent = panel
+    
+    btn.MouseButton1Click:Connect(function()
+        local char = lp.Character
+        local head = char and char:FindFirstChild("Head")
+        
+        if head then
+            -- Hapus suara lama
+            for _, v in pairs(head:GetChildren()) do
+                if v:IsA("Sound") then v:Destroy() end
+            end
+            
+            local s = Instance.new("Sound")
+            s.SoundId = "rbxassetid://" .. id
+            s.Volume = 10
+            s.Parent = head -- Nempel di kepala (paling aman buat server)
+            s:Play()
+            
+            status.Text = "Memutar ID: " .. id
+        end
+    end)
+    yPos = yPos + 35
+end
 
 toggle.MouseButton1Click:Connect(function() panel.Visible = not panel.Visible end)
-
--- ================= FUNGSI PLAY =================
-playBtn.MouseButton1Click:Connect(function()
-    local id = idBox.Text
-    if id == "" or not tonumber(id) then return end
-
-    if currentSound then currentSound:Destroy() end
-
-    currentSound = Instance.new("Sound")
-    currentSound.SoundId = "rbxassetid://" .. id
-    currentSound.Volume = 10 -- Volume maksimal (biar kenceng)
-    currentSound.Looped = true -- Muter terus-terusan
-    currentSound.RollOffMode = Enum.RollOffMode.InverseTapered -- Biar suara gak ngecil walau jauh
-    
-    -- Taruh di SoundService biar 2D (Global)
-    currentSound.Parent = SoundService 
-    currentSound:Play()
-    
-    playBtn.Text = "Sedang Boom! (Klik Stop)"
-end)
-
--- ================= FUNGSI STOP =================
-stopBtn.MouseButton1Click:Connect(function()
-    if currentSound then
-        currentSound:Stop()
-        currentSound:Destroy()
-        currentSound = nil
-        playBtn.Text = "Putar Vine Boom (Play)"
-    end
-end)
