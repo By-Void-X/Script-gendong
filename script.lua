@@ -1,11 +1,12 @@
--- Mega Spin Fling (Weld Physics)
+-- Jail Lockdown System (Spam State + Physical Cage)
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local lp = Players.LocalPlayer
 
 local selectedPlayer = nil
-local isFlinging = false
-local currentWeld = nil
+local isJailed = false
+local jailConnection = nil
+local currentCage = nil
 
 -- ================= GUI SETUP =================
 local gui = Instance.new("ScreenGui")
@@ -48,7 +49,7 @@ status.Parent = panel
 local actionBtn = Instance.new("TextButton")
 actionBtn.Size = UDim2.new(1,-20,0,40)
 actionBtn.Position = UDim2.new(0,10,0,190)
-actionBtn.Text = "Mulai Spin Fling: OFF"
+actionBtn.Text = "Kurung Target: OFF"
 actionBtn.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
 actionBtn.TextColor3 = Color3.fromRGB(255,255,255)
 actionBtn.Parent = panel
@@ -84,98 +85,99 @@ updateList()
 Players.PlayerAdded:Connect(updateList)
 Players.PlayerRemoving:Connect(updateList)
 
--- ================= FUNGSI BERSIHKAN =================
-local function stopFling()
-    isFlinging = false
-    if currentWeld then
-        currentWeld:Destroy()
-        currentWeld = nil
+-- ================= FUNGSI BIKIN KANDANG =================
+local function createCage(pos)
+    if currentCage then currentCage:Destroy() end
+    currentCage = Instance.new("Model")
+    currentCage.Name = "JailCage"
+    currentCage.Parent = workspace
+
+    -- Bikin 6 sisi kandang (Kotak)
+    local size = Vector3.new(6, 6, 6)
+    local offsets = {
+        Vector3.new(0, 3, 3), Vector3.new(0, 3, -3), -- Depan Belakang
+        Vector3.new(3, 3, 0), Vector3.new(-3, 3, 0), -- Kanan Kiri
+        Vector3.new(0, 6, 0), Vector3.new(0, 0, 0)   -- Atas Bawah
+    }
+
+    for _, offset in ipairs(offsets) do
+        local wall = Instance.new("Part")
+        wall.Size = size
+        wall.Position = pos + offset
+        wall.Anchored = true
+        wall.CanCollide = true
+        wall.Color = Color3.fromRGB(255, 0, 0) -- Warna merah biar keliatan kayak penjara
+        wall.Material = Enum.Material.Neon
+        wall.Transparency = 0.5
+        wall.Parent = currentCage
     end
-    if lp.Character and lp.Character:FindFirstChild("HumanoidRootPart") then
-        local myRoot = lp.Character.HumanoidRootPart
-        for _, v in pairs(myRoot:GetChildren()) do
-            if v:IsA("BodyAngularVelocity") or v:IsA("BodyVelocity") then
-                v:Destroy()
-            end
-        end
-    end
-    actionBtn.Text = "Mulai Spin Fling: OFF"
-    actionBtn.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
 end
 
--- ================= AKSI FLING =================
-actionBtn.MouseButton1Click:Connect(function()
-    if not selectedPlayer or not selectedPlayer.Character then
-        status.Text = "Target tidak valid/mati!"
-        return
+-- ================= FUNGSI BERSIHKAN =================
+local function stopJail()
+    isJailed = false
+    if jailConnection then jailConnection:Disconnect() end
+    if currentCage then currentCage:Destroy() end
+    
+    if selectedPlayer and selectedPlayer.Character then
+        local hum = selectedPlayer.Character:FindFirstChild("Humanoid")
+        if hum then
+            pcall(function() hum.WalkSpeed = 16 end)
+        end
     end
+    
+    actionBtn.Text = "Kurung Target: OFF"
+    actionBtn.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
+    status.Text = "Target dibebaskan."
+end
 
-    isFlinging = not isFlinging
+-- ================= AKSI JAIL =================
+actionBtn.MouseButton1Click:Connect(function()
+    if not selectedPlayer or not selectedPlayer.Character then return end
 
-    if isFlinging then
-        actionBtn.Text = "Spin Fling: ON (Hentikan)"
+    isJailed = not isJailed
+
+    if isJailed then
+        actionBtn.Text = "Kurung Target: ON"
         actionBtn.BackgroundColor3 = Color3.fromRGB(50, 150, 50)
-        status.Text = "Mentransfer Fisika ke " .. selectedPlayer.Name
+        status.Text = "Mengurung " .. selectedPlayer.Name
 
-        local targetChar = selectedPlayer.Character
-        local targetRoot = targetChar:FindFirstChild("HumanoidRootPart")
-        local myRoot = lp.Character and lp.Character:FindFirstChild("HumanoidRootPart")
-
-        if myRoot and targetRoot then
-            -- 1. Pindahkan kita ke target
-            myRoot.CFrame = targetRoot.CFrame
-
-            -- 2. Pasang Body Velocity & Angular Velocity ke KARAKTER KITA
-            local bv = Instance.new("BodyVelocity")
-            bv.Velocity = Vector3.new(999999, 999999, 999999)
-            bv.MaxForce = Vector3.new(math.huge, math.huge, math.huge)
-            bv.Parent = myRoot
-
-            local bav = Instance.new("BodyAngularVelocity")
-            bav.AngularVelocity = Vector3.new(999999, 999999, 999999)
-            bav.MaxTorque = Vector3.new(math.huge, math.huge, math.huge)
-            bav.Parent = myRoot
-
-            -- 3. WELD (Ikat badan kita ke badan target)
-            if currentWeld then currentWeld:Destroy() end
-            currentWeld = Instance.new("WeldConstraint")
-            currentWeld.Part0 = myRoot
-            currentWeld.Part1 = targetRoot
-            currentWeld.Parent = myRoot
-
-            -- 4. Loop Penjaga (Kalau weld lepas atau target kabur, pasang lagi)
-            task.spawn(function()
-                while isFlinging do
-                    task.wait(0.1)
-                    local tRoot = selectedPlayer.Character and selectedPlayer.Character:FindFirstChild("HumanoidRootPart")
-                    local mRoot = lp.Character and lp.Character:FindFirstChild("HumanoidRootPart")
-                    
-                    if tRoot and mRoot then
-                        pcall(function()
-                            -- Coba rampas kendali server terus-terusan
-                            tRoot:SetNetworkOwner(lp)
-                            
-                            -- Kalau weld hilang, buat baru
-                            if not currentWeld or not currentWeld.Parent then
-                                currentWeld = Instance.new("WeldConstraint")
-                                currentWeld.Part0 = mRoot
-                                currentWeld.Part1 = tRoot
-                                currentWeld.Parent = mRoot
-                            end
-                            
-                            -- Hapus velocity target biar dia gak bisa ngelawan
-                            for _, v in pairs(tRoot:GetChildren()) do
-                                if v:IsA("BodyVelocity") then v:Destroy() end
-                            end
-                        end)
-                    else
-                        stopFling()
+        -- Loop Spam State
+        jailConnection = RunService.Heartbeat:Connect(function()
+            local char = selectedPlayer.Character
+            if not char then stopJail() return end
+            
+            local hum = char:FindFirstChild("Humanoid")
+            local root = char:FindFirstChild("HumanoidRootPart")
+            
+            if hum and root then
+                -- 1. Spam WalkSpeed 0
+                hum.WalkSpeed = 0
+                
+                -- 2. Spam Sit (Bikin dia duduk terus)
+                if not hum.Sit then
+                    hum.Sit = true
+                end
+                
+                -- 3. Cek Kandang (Bikin kandang di posisi dia)
+                if not currentCage or not currentCage.Parent then
+                    createCage(root.Position)
+                else
+                    -- Kalau dia keluar dari kandang (glitch), tarik kandangnya ke dia
+                    local cageCenter = currentCage:GetPivot().Position
+                    if (cageCenter - root.Position).Magnitude > 5 then
+                        createCage(root.Position)
                     end
                 end
-            end)
-        end
+
+                -- 4. Usaha Rampas Network Owner (Kadang bikin dia gak bisa gerak)
+                pcall(function()
+                    root:SetNetworkOwner(lp)
+                    root.Velocity = Vector3.new(0, 0, 0) -- Nol kecepatan
+                end)
+            end
+        end)
     else
-        stopFling()
-        status.Text = "Berhenti Fling."
+        stopJail()
     end
 end)
