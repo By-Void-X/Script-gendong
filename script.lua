@@ -1,4 +1,4 @@
--- Brookhaven TP & Spawn 50 C4
+-- Brookhaven REAL C4 Spammer (Tool Focus)
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local lp = Players.LocalPlayer
@@ -55,7 +55,7 @@ actionBtn.Parent = panel
 local findC4Btn = Instance.new("TextButton")
 findC4Btn.Size = UDim2.new(1,-20,0,30)
 findC4Btn.Position = UDim2.new(0,10,0,260)
-findC4Btn.Text = "Cari Ulang Asset C4"
+findC4Btn.Text = "Scan C4 (Dari Tas / Game)"
 findC4Btn.BackgroundColor3 = Color3.fromRGB(50, 100, 200)
 findC4Btn.TextColor3 = Color3.fromRGB(255,255,255)
 findC4Btn.Parent = panel
@@ -91,24 +91,41 @@ updateList()
 Players.PlayerAdded:Connect(updateList)
 Players.PlayerRemoving:Connect(updateList)
 
--- ================= CARI ASSET C4 =================
+-- ================= CARI ASSET C4 (FOKUS TOOL) =================
 local function findC4()
     c4Template = nil
-    -- Scan Workspace dan ReplicatedStorage
-    for _, parent in ipairs({workspace, ReplicatedStorage}) do
-        for _, v in ipairs(parent:GetDescendants()) do
-            local n = string.lower(v.Name)
-            if n == "c4" or n:find("c4") or n:find("bomb") or n:find("explosive") then
-                -- Biasanya C4 berupa Tool atau Part
-                if v:IsA("Tool") or v:IsA("Model") or v:IsA("Part") then
-                    c4Template = v
-                    status.Text = "C4 Ditemukan: " .. v.Name
-                    return
-                end
+    
+    -- 1. Cek apakah kita sedang megang C4?
+    for _, v in ipairs(lp.Character:GetChildren()) do
+        if v:IsA("Tool") and (string.lower(v.Name):find("c4") or string.lower(v.Name):find("bomb")) then
+            c4Template = v
+            status.Text = "C4 Ditemukan di Tangan: " .. v.Name
+            return
+        end
+    end
+    
+    -- 2. Cek di dalam Backpack kita?
+    local backpack = lp:FindFirstChild("Backpack")
+    if backpack then
+        for _, v in ipairs(backpack:GetChildren()) do
+            if v:IsA("Tool") and (string.lower(v.Name):find("c4") or string.lower(v.Name):find("bomb")) then
+                c4Template = v
+                status.Text = "C4 Ditemukan di Tas: " .. v.Name
+                return
             end
         end
     end
-    status.Text = "Asset C4 tidak ditemukan di map (Hanya Tool/Part)."
+
+    -- 3. Kalau nggak ada, cari Tool di ReplicatedStorage
+    for _, v in ipairs(ReplicatedStorage:GetDescendants()) do
+        if v:IsA("Tool") and (string.lower(v.Name):find("c4") or string.lower(v.Name):find("bomb")) then
+            c4Template = v
+            status.Text = "C4 Ditemukan di Game: " .. v.Name
+            return
+        end
+    end
+    
+    status.Text = "C4 TIDAK DITEMUKAN. Pastikan kamu punya C4 di tas atau pegang!"
 end
 findC4Btn.MouseButton1Click:Connect(findC4)
 
@@ -120,52 +137,53 @@ actionBtn.MouseButton1Click:Connect(function()
     end
     
     if not c4Template then
-        findC4() -- Coba cari dulu kalau belum ada
+        findC4()
         if not c4Template then return end
     end
     
     local myRoot = lp.Character and lp.Character:FindFirstChild("HumanoidRootPart")
-    local targetRoot = selectedPlayer.Character:FindFirstChild("HumanoidRootPart")
+    local targetChar = selectedPlayer.Character
+    local targetRoot = targetChar:FindFirstChild("HumanoidRootPart")
+    local targetHum = targetChar:FindFirstChild("Humanoid")
+    local targetBackpack = selectedPlayer:FindFirstChild("Backpack")
     
-    if myRoot and targetRoot then
+    if myRoot and targetRoot and targetHum and targetBackpack then
         -- 1. TP ke target
         myRoot.CFrame = targetRoot.CFrame * CFrame.new(0, 0, 3)
-        status.Text = "TP ke " .. selectedPlayer.Name .. " & Meluncurkan C4..."
+        status.Text = "TP ke " .. selectedPlayer.Name .. " & Spawn 50 C4..."
         
-        task.wait(0.5) -- Jeda dikit biar TP selesai
+        task.wait(0.5)
         
         -- 2. Spawn 50 C4
         for i = 1, 50 do
             task.spawn(function()
                 local clone = c4Template:Clone()
-                clone.Parent = workspace
                 
-                local offsetX = math.random(-10, 10)
-                local offsetZ = math.random(-10, 10)
+                -- Paksa masuk ke tas target
+                clone.Parent = targetBackpack
                 
-                if clone:IsA("Model") and clone.PrimaryPart then
-                    clone:SetPrimaryPartCFrame(targetRoot.CFrame * CFrame.new(offsetX, 2, offsetZ))
-                elseif clone:IsA("BasePart") then
-                    clone.CFrame = targetRoot.CFrame * CFrame.new(offsetX, 2, offsetZ)
-                elseif clone:IsA("Tool") then
-                    -- Kalau bentuknya Tool, paksa pindah ke Backpack/Character target (karena Tool harus dipegang)
-                    clone.Parent = selectedPlayer.Backpack 
-                    -- Coba paksa target equip
-                    task.spawn(function()
-                        pcall(function() selectedPlayer.Character.Humanoid:EquipTool(clone) end)
-                    end)
-                end
-                
-                -- 3. Picu Ledakan (Cari ProximityPrompt atau RemoteEvent di dalam C4)
                 task.wait(0.1)
-                for _, child in ipairs(clone:GetDescendants()) do
-                    if child:IsA("ProximityPrompt") then
-                        pcall(function() child:InputHoldBegin() task.wait(0.1) child:InputHoldEnd() end)
-                    elseif child:IsA("ClickDetector") then
-                        pcall(function() fireclickdetector(child) end)
+                
+                -- Paksa target equip C4 tersebut
+                pcall(function()
+                    targetHum:EquipTool(clone)
+                end)
+                
+                task.wait(0.1)
+                
+                -- Paksa aktifkan C4 (Klik)
+                pcall(function()
+                    clone:Activate()
+                end)
+                
+                -- Picu semua RemoteEvent yang ada di dalam C4 (buat jaga-jaga kalau Activate gak jalan)
+                for _, remote in ipairs(clone:GetDescendants()) do
+                    if remote:IsA("RemoteEvent") then
+                        pcall(function() remote:FireServer() end)
                     end
                 end
             end)
+            task.wait(0.05) -- Jeda antar spawn
         end
     end
 end)
