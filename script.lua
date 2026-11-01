@@ -1,12 +1,11 @@
--- Jail Lockdown System (Spam State + Physical Cage)
+-- Troll Avatar (Giant, Speed Ram, Clone Spam)
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local lp = Players.LocalPlayer
 
-local selectedPlayer = nil
-local isJailed = false
-local jailConnection = nil
-local currentCage = nil
+local isGiant = false
+local isSpeed = false
+local speedConn = nil
 
 -- ================= GUI SETUP =================
 local gui = Instance.new("ScreenGui")
@@ -22,162 +21,147 @@ toggle.TextColor3 = Color3.fromRGB(255,255,255)
 toggle.Parent = gui
 
 local panel = Instance.new("Frame")
-panel.Size = UDim2.new(0, 220, 0, 250)
+panel.Size = UDim2.new(0, 220, 0, 200)
 panel.Position = UDim2.new(0, 10, 0, 50)
 panel.BackgroundColor3 = Color3.fromRGB(20,20,20)
 panel.Visible = false
 panel.Parent = gui
 
-local scroll = Instance.new("ScrollingFrame")
-scroll.Size = UDim2.new(1,-20,0,130)
-scroll.Position = UDim2.new(0,10,0,10)
-scroll.BackgroundColor3 = Color3.fromRGB(35,35,35)
-scroll.Parent = panel
+-- FITUR 1: RAKSASA (Nge-block jalan)
+local giantBtn = Instance.new("TextButton")
+giantBtn.Size = UDim2.new(1,-20,0,40)
+giantBtn.Position = UDim2.new(0,10,0,10)
+giantBtn.Text = "Mode Raksasa: OFF"
+giantBtn.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
+giantBtn.TextColor3 = Color3.fromRGB(255,255,255)
+giantBtn.Parent = panel
 
-local uiList = Instance.new("UIListLayout")
-uiList.Parent = scroll
+-- FITUR 2: SPEED RAM (Nabrak orang pake kecepatan)
+local speedBtn = Instance.new("TextButton")
+speedBtn.Size = UDim2.new(1,-20,0,40)
+speedBtn.Position = UDim2.new(0,10,0,60)
+speedBtn.Text = "Speed Ram: OFF"
+speedBtn.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
+speedBtn.TextColor3 = Color3.fromRGB(255,255,255)
+speedBtn.Parent = panel
+
+-- FITUR 3: KLONING (Spawn replika di tempat orang)
+local cloneBtn = Instance.new("TextButton")
+cloneBtn.Size = UDim2.new(1,-20,0,40)
+cloneBtn.Position = UDim2.new(0,10,0,110)
+cloneBtn.Text = "Spawn Klon Raksasa"
+cloneBtn.BackgroundColor3 = Color3.fromRGB(200, 100, 50)
+cloneBtn.TextColor3 = Color3.fromRGB(255,255,255)
+cloneBtn.Parent = panel
 
 local status = Instance.new("TextLabel")
-status.Size = UDim2.new(1,-20,0,30)
-status.Position = UDim2.new(0,10,0,145)
-status.Text = "Pilih Target..."
-status.TextWrapped = true
-status.TextColor3 = Color3.fromRGB(255, 255, 100)
+status.Size = UDim2.new(1,-20,0,20)
+status.Position = UDim2.new(0,10,0,160)
+status.Text = "Siap"
+status.TextColor3 = Color3.fromRGB(200,200,200)
 status.BackgroundTransparency = 1
 status.Parent = panel
 
-local actionBtn = Instance.new("TextButton")
-actionBtn.Size = UDim2.new(1,-20,0,40)
-actionBtn.Position = UDim2.new(0,10,0,190)
-actionBtn.Text = "Kurung Target: OFF"
-actionBtn.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
-actionBtn.TextColor3 = Color3.fromRGB(255,255,255)
-actionBtn.Parent = panel
-
 toggle.MouseButton1Click:Connect(function() panel.Visible = not panel.Visible end)
 
--- ================= PLAYER LIST =================
-local function updateList()
-    for _, child in ipairs(scroll:GetChildren()) do
-        if child:IsA("TextButton") then child:Destroy() end
+-- ================= FITUR RAKSASA =================
+giantBtn.MouseButton1Click:Connect(function()
+    isGiant = not isGiant
+    if isGiant then
+        giantBtn.Text = "Mode Raksasa: ON"
+        giantBtn.BackgroundColor3 = Color3.fromRGB(50, 150, 50)
+    else
+        giantBtn.Text = "Mode Raksasa: OFF"
+        giantBtn.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
     end
-    for _, p in ipairs(Players:GetPlayers()) do
-        if p ~= lp then
-            local btn = Instance.new("TextButton")
-            btn.Size = UDim2.new(1, -5, 0, 30)
-            btn.Text = p.Name
-            btn.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
-            btn.TextColor3 = Color3.fromRGB(255, 255, 255)
-            btn.Parent = scroll
-            btn.MouseButton1Click:Connect(function()
-                for _, otherBtn in ipairs(scroll:GetChildren()) do
-                    if otherBtn:IsA("TextButton") then otherBtn.BackgroundColor3 = Color3.fromRGB(60, 60, 60) end
-                end
-                btn.BackgroundColor3 = Color3.fromRGB(100, 100, 255)
-                selectedPlayer = p
-                status.Text = "Target: " .. p.Name
-            end)
-        end
-    end
-    scroll.CanvasSize = UDim2.new(0, 0, 0, #Players:GetPlayers() * 35)
-end
-updateList()
-Players.PlayerAdded:Connect(updateList)
-Players.PlayerRemoving:Connect(updateList)
-
--- ================= FUNGSI BIKIN KANDANG =================
-local function createCage(pos)
-    if currentCage then currentCage:Destroy() end
-    currentCage = Instance.new("Model")
-    currentCage.Name = "JailCage"
-    currentCage.Parent = workspace
-
-    -- Bikin 6 sisi kandang (Kotak)
-    local size = Vector3.new(6, 6, 6)
-    local offsets = {
-        Vector3.new(0, 3, 3), Vector3.new(0, 3, -3), -- Depan Belakang
-        Vector3.new(3, 3, 0), Vector3.new(-3, 3, 0), -- Kanan Kiri
-        Vector3.new(0, 6, 0), Vector3.new(0, 0, 0)   -- Atas Bawah
-    }
-
-    for _, offset in ipairs(offsets) do
-        local wall = Instance.new("Part")
-        wall.Size = size
-        wall.Position = pos + offset
-        wall.Anchored = true
-        wall.CanCollide = true
-        wall.Color = Color3.fromRGB(255, 0, 0) -- Warna merah biar keliatan kayak penjara
-        wall.Material = Enum.Material.Neon
-        wall.Transparency = 0.5
-        wall.Parent = currentCage
-    end
-end
-
--- ================= FUNGSI BERSIHKAN =================
-local function stopJail()
-    isJailed = false
-    if jailConnection then jailConnection:Disconnect() end
-    if currentCage then currentCage:Destroy() end
     
-    if selectedPlayer and selectedPlayer.Character then
-        local hum = selectedPlayer.Character:FindFirstChild("Humanoid")
+    local char = lp.Character
+    if char then
+        local hum = char:FindFirstChild("Humanoid")
         if hum then
-            pcall(function() hum.WalkSpeed = 16 end)
+            if isGiant then
+                -- Ubah ukuran tubuh jadi super besar
+                hum.BodyDepthScale.Value = 5
+                hum.BodyWidthScale.Value = 5
+                hum.BodyHeightScale.Value = 5
+                hum.HeadScale.Value = 5
+            else
+                -- Balikin ke normal
+                hum.BodyDepthScale.Value = 1
+                hum.BodyWidthScale.Value = 1
+                hum.BodyHeightScale.Value = 1
+                hum.HeadScale.Value = 1
+            end
         end
     end
-    
-    actionBtn.Text = "Kurung Target: OFF"
-    actionBtn.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
-    status.Text = "Target dibebaskan."
-end
+end)
 
--- ================= AKSI JAIL =================
-actionBtn.MouseButton1Click:Connect(function()
-    if not selectedPlayer or not selectedPlayer.Character then return end
-
-    isJailed = not isJailed
-
-    if isJailed then
-        actionBtn.Text = "Kurung Target: ON"
-        actionBtn.BackgroundColor3 = Color3.fromRGB(50, 150, 50)
-        status.Text = "Mengurung " .. selectedPlayer.Name
-
-        -- Loop Spam State
-        jailConnection = RunService.Heartbeat:Connect(function()
-            local char = selectedPlayer.Character
-            if not char then stopJail() return end
-            
-            local hum = char:FindFirstChild("Humanoid")
-            local root = char:FindFirstChild("HumanoidRootPart")
-            
-            if hum and root then
-                -- 1. Spam WalkSpeed 0
-                hum.WalkSpeed = 0
-                
-                -- 2. Spam Sit (Bikin dia duduk terus)
-                if not hum.Sit then
-                    hum.Sit = true
+-- ================= FITUR SPEED RAM =================
+speedBtn.MouseButton1Click:Connect(function()
+    isSpeed = not isSpeed
+    if isSpeed then
+        speedBtn.Text = "Speed Ram: ON"
+        speedBtn.BackgroundColor3 = Color3.fromRGB(50, 150, 50)
+        
+        -- Loop buat ngebut terus
+        speedConn = RunService.Heartbeat:Connect(function()
+            local root = lp.Character and lp.Character:FindFirstChild("HumanoidRootPart")
+            if root then
+                -- Paksa velocity maju dengan kecepatan tinggi
+                local moveDir = lp.Character.Humanoid.MoveDirection
+                if moveDir.Magnitude > 0 then
+                    root.Velocity = moveDir * 500 -- Kecepatan super
                 end
-                
-                -- 3. Cek Kandang (Bikin kandang di posisi dia)
-                if not currentCage or not currentCage.Parent then
-                    createCage(root.Position)
-                else
-                    -- Kalau dia keluar dari kandang (glitch), tarik kandangnya ke dia
-                    local cageCenter = currentCage:GetPivot().Position
-                    if (cageCenter - root.Position).Magnitude > 5 then
-                        createCage(root.Position)
-                    end
-                end
-
-                -- 4. Usaha Rampas Network Owner (Kadang bikin dia gak bisa gerak)
-                pcall(function()
-                    root:SetNetworkOwner(lp)
-                    root.Velocity = Vector3.new(0, 0, 0) -- Nol kecepatan
-                end)
             end
         end)
     else
-        stopJail()
+        speedBtn.Text = "Speed Ram: OFF"
+        speedBtn.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
+        if speedConn then speedConn:Disconnect() end
     end
+end)
+
+-- ================= FITUR SPAWN KLON RAKSASA =================
+cloneBtn.MouseButton1Click:Connect(function()
+    local char = lp.Character
+    if not char then return end
+    
+    status.Text = "Membuat Klon..."
+    
+    -- Kloning karakter kita
+    local clone = char:Clone()
+    clone.Name = "FakePlayer"
+    
+    -- Hapus script AI bawaan biar diem
+    for _, v in pairs(clone:GetDescendants()) do
+        if v:IsA("Script") or v:IsA("LocalScript") then
+            v:Destroy()
+        end
+    end
+    
+    -- Taruh di posisi kita sekarang
+    local root = char:FindFirstChild("HumanoidRootPart")
+    if root then
+        clone:SetPrimaryPartCFrame(root.CFrame * CFrame.new(0, 0, -5))
+    end
+    
+    -- Bikin raksasa
+    local hum = clone:FindFirstChild("Humanoid")
+    if hum then
+        hum.BodyDepthScale.Value = 5
+        hum.BodyWidthScale.Value = 5
+        hum.BodyHeightScale.Value = 5
+        hum.HeadScale.Value = 5
+        hum.WalkSpeed = 0 -- Biar diem
+    end
+    
+    -- Anchored (Kunci di tempat)
+    for _, part in pairs(clone:GetDescendants()) do
+        if part:IsA("BasePart") then
+            part.Anchored = true
+        end
+    end
+    
+    clone.Parent = workspace
+    status.Text = "Klon berhasil dibuat!"
 end)
