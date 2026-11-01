@@ -1,5 +1,6 @@
--- TP & Break Joints (Ragdoll Paksa)
+-- Server-Sided Explosion Spammer (Visual Only)
 local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local lp = Players.LocalPlayer
 
 local selectedPlayer = nil
@@ -45,7 +46,7 @@ status.Parent = panel
 local actionBtn = Instance.new("TextButton")
 actionBtn.Size = UDim2.new(1,-20,0,40)
 actionBtn.Position = UDim2.new(0,10,0,210)
-actionBtn.Text = "TP & Hancurkan Karakter"
+actionBtn.Text = "TP & Ledakkan (Server Visual)"
 actionBtn.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
 actionBtn.TextColor3 = Color3.fromRGB(255,255,255)
 actionBtn.Parent = panel
@@ -81,52 +82,54 @@ updateList()
 Players.PlayerAdded:Connect(updateList)
 Players.PlayerRemoving:Connect(updateList)
 
--- ================= AKSI HANCURKAN =================
+-- ================= CARI REMOTE EFEK LEDAKAN =================
+local explodeRemotes = {}
+for _, v in ipairs(ReplicatedStorage:GetDescendants()) do
+    if v:IsA("RemoteEvent") or v:IsA("RemoteFunction") then
+        local n = string.lower(v.Name)
+        if n:find("explode") or n:find("boom") or n:find("firework") or n:find("grenade") or n:find("particle") or n:find("effect") or n:find("spawn") then
+            table.insert(explodeRemotes, v)
+        end
+    end
+end
+
+-- ================= AKSI LEDAKKAN =================
 actionBtn.MouseButton1Click:Connect(function()
     if not selectedPlayer or not selectedPlayer.Character then
         status.Text = "Target tidak valid/mati!"
         return
     end
     
+    if #explodeRemotes == 0 then
+        status.Text = "Gagal: Tidak ada RemoteEvent efek ditemukan!"
+        return
+    end
+
     local myRoot = lp.Character and lp.Character:FindFirstChild("HumanoidRootPart")
-    local targetChar = selectedPlayer.Character
-    local targetRoot = targetChar:FindFirstChild("HumanoidRootPart")
+    local targetRoot = selectedPlayer.Character:FindFirstChild("HumanoidRootPart")
     
     if myRoot and targetRoot then
         -- 1. TP ke target
         myRoot.CFrame = targetRoot.CFrame * CFrame.new(0, 0, 3)
-        status.Text = "TP & Menghancurkan " .. selectedPlayer.Name .. "..."
+        status.Text = "Menembak Efek Ledakan ke " .. selectedPlayer.Name .. "..."
         
-        task.wait(0.2)
-        
-        -- 2. Hancurkan Sendi (Motor6D) Karakter Target
-        for _, v in pairs(targetChar:GetDescendants()) do
-            if v:IsA("Motor6D") then
-                pcall(function()
-                    -- Putuskan sendi biar badannya lepas
-                    v.Part0 = nil 
-                end)
-            end
+        -- 2. Spam Remote biar efek ledakannya besar & banyak
+        for i = 1, 30 do
+            task.spawn(function()
+                for _, remote in ipairs(explodeRemotes) do
+                    pcall(function()
+                        if remote:IsA("RemoteEvent") then
+                            -- Berbagai macam argumen (Posisi, Target, String)
+                            remote:FireServer(targetRoot.Position)
+                            remote:FireServer(targetRoot)
+                            remote:FireServer("Explode", targetRoot.Position)
+                        else
+                            remote:InvokeServer(targetRoot.Position)
+                        end
+                    end)
+                end
+            end)
+            task.wait(0.05)
         end
-        
-        -- 3. Paksa Target Mental (Ragdoll)
-        pcall(function()
-            local targetHum = targetChar:FindFirstChild("Humanoid")
-            if targetHum then
-                targetHum.PlatformStand = true
-                targetHum.Sit = true
-            end
-        end)
-        
-        -- 4. Spam Velocity buat mentalin badannya yang udah lepas
-        task.spawn(function()
-            for i = 1, 20 do
-                pcall(function()
-                    targetRoot.Velocity = Vector3.new(math.random(-200, 200), 500, math.random(-200, 200))
-                    targetRoot.RotVelocity = Vector3.new(math.random(-100, 100), math.random(-100, 100), math.random(-100, 100))
-                end)
-                task.wait(0.1)
-            end
-        end)
     end
 end)
